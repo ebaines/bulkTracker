@@ -3,14 +3,15 @@ package main
 import (
 	"bytes"
 	"database/sql"
+	"fmt"
 	api "git.ebain.es/healthAndFitnessTracker/internal/api"
 	helpers "git.ebain.es/healthAndFitnessTracker/internal/helpers"
 	regression "git.ebain.es/healthAndFitnessTracker/internal/regression"
+	database "git.ebain.es/healthAndFitnessTracker/internal/database"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -45,24 +46,42 @@ func processDatabase() string {
 	defer db.Close()
 
 	var dateRange = 1000
-	dates, weights, calories := getFinalRows(db, dateRange)
+	records := database.GetFinalRows(db, dateRange)
+
+	var weightDates, calorieDates []time.Time
+	var weights, calories []float64
+
+	// Only plot the datapoint if the weight/calorie isn't NULL in the table.
+	for _, record := range records {
+		if record.Weight.Valid{
+			weightDates = append(weightDates, record.Time)
+			weights = append(weights, record.Weight.Float64)
+		}
+		if record.Calories.Valid{
+			calorieDates = append(calorieDates, record.Time)
+			calories = append(weights, record.Weight.Float64)
+		}
+	}
+
+	fmt.Println(len(weights))
+	fmt.Println(len(calories))
 
 	//Calculate smoothed line for weights.
-	_, loessWeights := regression.CoordsToArrays(loessSmoothTimeSeries(dates, weights, 28))
+	_, loessWeights := regression.CoordsToArrays(loessSmoothTimeSeries(weightDates, weights, 28))
 
 	//Calculate smoothed line for calories
-	_, loessCalories := regression.CoordsToArrays(loessSmoothTimeSeries(dates, calories, 28))
+	_, loessCalories := regression.CoordsToArrays(loessSmoothTimeSeries(calorieDates, calories, 28))
 
 	//Calculate weight change per day and smooth.
 	dayWeightDelta := calculateDayDifferences(weights, 1)
-	_, loessDayWeightDelta := regression.CoordsToArrays(loessSmoothTimeSeries(dates, dayWeightDelta, 100))
+	_, loessDayWeightDelta := regression.CoordsToArrays(loessSmoothTimeSeries(weightDates, dayWeightDelta, 100))
 
 	//Calculate calories consumed per kg of bodyweight each day and smooth.
 	var caloriesPerKg []float64
 	for i, weight := range weights {
 		caloriesPerKg = append(caloriesPerKg, calories[i]/weight)
 	}
-	_, loessCaloriesPerKg := regression.CoordsToArrays(loessSmoothTimeSeries(dates, caloriesPerKg, 48))
+	_, loessCaloriesPerKg := regression.CoordsToArrays(loessSmoothTimeSeries(calorieDates, caloriesPerKg, 48))
 
 	//Calculate current TDEE
 	calorieSlidingAverage := slidingAvgs(loessCalories, 14)
@@ -91,7 +110,7 @@ func processDatabase() string {
 	t.AppendHeader(table.Row{"Date", "Calories", "Day's Weight", "Rolling Weight", "Rolling Smoothed Calories", "1 Day ΔM", "7 Day ΔM", "28 Day ΔM", "7 Day ΔKCal", "TDEE"})
 	for i := 0; i < len(differences); i++ {
 		t.AppendRows([]table.Row{{
-			dates[i].Format(dateFormat), calories[i], weights[i],
+			weightDates[i].Format(dateFormat), calories[i], weights[i],
 			helpers.RoundDecimalPlaces(loessWeights[i], 2),
 			helpers.RoundDecimalPlaces(loessCalories[i], 2),
 			helpers.RoundDecimalPlaces(loessDayWeightDelta[i], 2),
@@ -118,13 +137,13 @@ func processDatabase() string {
 		Series: []chart.Series{
 			chart.TimeSeries{
 				Name:    "Smoothed Daily Weight",
-				XValues: dates,
+				XValues: weightDates,
 				YValues: loessWeights,
 			},
 			chart.TimeSeries{
 				Name:    "Smoothed Daily Calories",
 				YAxis:   chart.YAxisSecondary,
-				XValues: dates[7:],
+				XValues: calorieDates[7:],
 				YValues: loessCalories[7:],
 			},
 		},
@@ -146,13 +165,13 @@ func processDatabase() string {
 		Series: []chart.Series{
 			chart.TimeSeries{
 				Name:    "Smoothed Weight Gain",
-				XValues: dates,
+				XValues: weightDates,
 				YValues: loessDayWeightDelta,
 			},
 			chart.TimeSeries{
 				Name:    "Smoothed Daily Calories",
 				YAxis:   chart.YAxisSecondary,
-				XValues: dates,
+				XValues: calorieDates,
 				YValues: loessCaloriesPerKg,
 			},
 		},
@@ -180,13 +199,13 @@ func processDatabase() string {
 			//},
 			chart.TimeSeries{
 				Name:    "TDEE",
-				XValues: dates[28:],
+				XValues: weightDates[28:],
 				YValues: tdee,
 			},
 			chart.TimeSeries{
 				Name:    "Weight /kg",
 				YAxis:   chart.YAxisSecondary,
-				XValues: dates,
+				XValues: weightDates,
 				YValues: loessWeights,
 			},
 		},
@@ -210,72 +229,6 @@ func processDatabase() string {
 	err = ioutil.WriteFile("output3.png", buffer3.Bytes(), 0644)
 
 	return renderedTable
-}
-
-func getFinalRows(dbConn *sql.DB, numRows int) ([]time.Time, []float64, []float64) {
-	sqlCntStmt :=
-		"SELECT COUNT(date) FROM weight ORDER BY id DESC LIMIT " + strconv.Itoa(numRows) + ";"
-	sqlStmt :=
-		"SELECT date, weight_kg, calories_kcal FROM weight ORDER BY id DESC LIMIT " + strconv.Itoa(numRows) + ";"
-
-	rows, err := dbConn.Query(sqlCntStmt)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer rows.Close()
-
-	var count int
-	for rows.Next() {
-		err = rows.Scan(&count)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	if count > numRows {
-		count = numRows
-	}
-
-	rows, err = dbConn.Query(sqlStmt)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer rows.Close()
-
-	dateSlice := make([]time.Time, 0, count)
-	weightSlice := make([]float64, 0, count)
-	calorieSlice := make([]float64, 0, count)
-
-	var date string
-	var weight float64
-	var calories float64
-
-	for rows.Next() {
-
-		err = rows.Scan(&date, &weight, &calories)
-
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		parsedDate, _ := time.Parse(dateFormat, date)
-		dateSlice = append(dateSlice, parsedDate)
-		weightSlice = append(weightSlice, weight)
-		calorieSlice = append(calorieSlice, calories)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for i, j := 0, len(dateSlice)-1; i < j; i, j = i+1, j-1 {
-		dateSlice[i], dateSlice[j] = dateSlice[j], dateSlice[i]
-		weightSlice[i], weightSlice[j] = weightSlice[j], weightSlice[i]
-		calorieSlice[i], calorieSlice[j] = calorieSlice[j], calorieSlice[i]
-	}
-
-	return dateSlice, weightSlice, calorieSlice
 }
 
 func slidingAvgs(dayValues []float64, width int) []float64 {
