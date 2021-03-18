@@ -88,15 +88,6 @@ func processDatabase() string {
 		tdee = append(tdee, calculateTDEE(calorieAverage, weightDeltaSlidingAverage[i]))
 	}
 
-	//_, smoothedTdee := regression.CoordsToArrays(loessSmoothTimeSeries(dates[28:], tdee, 48))
-	//fmt.Println("TDEE: ", tdee)
-
-	//Calculate TDEE per KG
-	//var tdeePerKg []float64
-	//for i, i_tdee := range tdee{
-	//	tdeePerKg = append(tdeePerKg, i_tdee / loessWeights[27 + i])
-	//}
-
 	differences := calculateDayDifferences(loessWeights, 7)
 	bigDifferences := calculateDayDifferences(loessWeights, 28)
 	differencesCals := calculateDayDifferences(loessCalories, 7)
