@@ -3,11 +3,10 @@ package main
 import (
 	"bytes"
 	"database/sql"
-	"fmt"
 	api "git.ebain.es/healthAndFitnessTracker/internal/api"
+	database "git.ebain.es/healthAndFitnessTracker/internal/database"
 	helpers "git.ebain.es/healthAndFitnessTracker/internal/helpers"
 	regression "git.ebain.es/healthAndFitnessTracker/internal/regression"
-	database "git.ebain.es/healthAndFitnessTracker/internal/database"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -62,9 +61,6 @@ func processDatabase() string {
 			calories = append(weights, record.Weight.Float64)
 		}
 	}
-
-	fmt.Println(len(weights))
-	fmt.Println(len(calories))
 
 	//Calculate smoothed line for weights.
 	_, loessWeights := regression.CoordsToArrays(loessSmoothTimeSeries(weightDates, weights, 28))

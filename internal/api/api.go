@@ -13,7 +13,7 @@ const dateFormat = "02/01/2006"
 const sqliteConnString = "file:/home/ebaines/Downloads/fitness.db"
 
 type weightEntry struct {
-	Time   int64   `json:"timestamp" binding:"required"`
+	Time   int64   `json:"timestamp"`
 	Weight float64 `json:"weight" binding:"required"`
 }
 
@@ -38,7 +38,11 @@ func AddWeight(c *gin.Context) {
 
 	var parsedEntry parsedWeightEntry
 
-	parsedEntry.date = time.Unix(json.Time, 0).Format(dateFormat)
+	if json.Time == 0{
+		parsedEntry.date = time.Now().Format(dateFormat)
+	} else{
+		parsedEntry.date = time.Unix(json.Time, 0).Format(dateFormat)
+	}
 	parsedEntry.weight = helpers.RoundDecimalPlaces(json.Weight, 1)
 
 	tx, err := db.Begin()

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-type dayEntry struct {
+type dayRecord struct {
 	Time     time.Time
 	Weight   sql.NullFloat64
 	Calories sql.NullFloat64
@@ -15,7 +15,7 @@ type dayEntry struct {
 
 const dateFormat = "02/01/2006"
 
-func GetFinalRows(dbConn *sql.DB, numRows int) []dayEntry {
+func GetFinalRows(dbConn *sql.DB, numRows int) []dayRecord {
 	sqlCntStmt :=
 		"SELECT COUNT(date) FROM weight ORDER BY id DESC LIMIT " + strconv.Itoa(numRows) + ";"
 	sqlStmt :=
@@ -45,10 +45,10 @@ func GetFinalRows(dbConn *sql.DB, numRows int) []dayEntry {
 	}
 	defer rows.Close()
 
-	entrySlice := make([]dayEntry, 0, count)
+	recordSlice := make([]dayRecord, 0, count)
 
 	var date string
-	var entry dayEntry
+	var entry dayRecord
 
 	for rows.Next() {
 
@@ -60,7 +60,7 @@ func GetFinalRows(dbConn *sql.DB, numRows int) []dayEntry {
 
 		parsedDate, _ := time.Parse(dateFormat, date)
 		entry.Time = parsedDate
-		entrySlice = append(entrySlice, entry)
+		recordSlice = append(recordSlice, entry)
 
 	}
 
@@ -69,9 +69,9 @@ func GetFinalRows(dbConn *sql.DB, numRows int) []dayEntry {
 		log.Fatal(err)
 	}
 
-	for i, j := 0, len(entrySlice)-1; i < j; i, j = i+1, j-1 {
-		entrySlice[i], entrySlice[j] = entrySlice[j], entrySlice[i]
+	for i, j := 0, len(recordSlice)-1; i < j; i, j = i+1, j-1 {
+		recordSlice[i], recordSlice[j] = recordSlice[j], recordSlice[i]
 	}
 
-	return entrySlice
+	return recordSlice
 }
