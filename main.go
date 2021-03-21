@@ -47,37 +47,40 @@ func processDatabase() string {
 	var dateRange = 1000
 	records := database.GetFinalRows(db, dateRange)
 
-	var weightDates, calorieDates []time.Time
+	var dates = make([]time.Time, 0, 1000)
+	var weightDates = make([]time.Time, 0, 1000)
+	var calorieDates = make([]time.Time, 0, 1000)
 	var weights, calories []float64
 
 	// Only plot the datapoint if the weight/calorie isn't NULL in the table.
 	for _, record := range records {
+		dates = append(dates, record.Time)
 		if record.Weight.Valid{
 			weightDates = append(weightDates, record.Time)
 			weights = append(weights, record.Weight.Float64)
 		}
 		if record.Calories.Valid{
 			calorieDates = append(calorieDates, record.Time)
-			calories = append(weights, record.Weight.Float64)
+			calories = append(calories, record.Calories.Float64)
 		}
 	}
 
 	//Calculate smoothed line for weights.
-	_, loessWeights := regression.CoordsToArrays(loessSmoothTimeSeries(weightDates, weights, 28))
+	_, loessWeights := regression.CoordsToArrays(loessSmoothTimeSeries(dates, weightDates, weights, 0.2))
 
 	//Calculate smoothed line for calories
-	_, loessCalories := regression.CoordsToArrays(loessSmoothTimeSeries(calorieDates, calories, 28))
+	_, loessCalories := regression.CoordsToArrays(loessSmoothTimeSeries(dates, calorieDates, calories, 0.2))
 
 	//Calculate weight change per day and smooth.
 	dayWeightDelta := calculateDayDifferences(weights, 1)
-	_, loessDayWeightDelta := regression.CoordsToArrays(loessSmoothTimeSeries(weightDates, dayWeightDelta, 100))
+	_, loessDayWeightDelta := regression.CoordsToArrays(loessSmoothTimeSeries(dates, weightDates, dayWeightDelta, 0.4))
 
 	//Calculate calories consumed per kg of bodyweight each day and smooth.
 	var caloriesPerKg []float64
 	for i, weight := range weights {
 		caloriesPerKg = append(caloriesPerKg, calories[i]/weight)
 	}
-	_, loessCaloriesPerKg := regression.CoordsToArrays(loessSmoothTimeSeries(calorieDates, caloriesPerKg, 48))
+	_, loessCaloriesPerKg := regression.CoordsToArrays(loessSmoothTimeSeries(dates, calorieDates, caloriesPerKg, 0.3))
 
 	//Calculate current TDEE
 	calorieSlidingAverage := slidingAvgs(loessCalories, 14)
@@ -97,7 +100,7 @@ func processDatabase() string {
 	t.AppendHeader(table.Row{"Date", "Calories", "Day's Weight", "Rolling Weight", "Rolling Smoothed Calories", "1 Day ΔM", "7 Day ΔM", "28 Day ΔM", "7 Day ΔKCal", "TDEE"})
 	for i := 0; i < len(differences); i++ {
 		t.AppendRows([]table.Row{{
-			weightDates[i].Format(dateFormat), calories[i], weights[i],
+			dates[i].Format(dateFormat), calories[i], weights[i],
 			helpers.RoundDecimalPlaces(loessWeights[i], 2),
 			helpers.RoundDecimalPlaces(loessCalories[i], 2),
 			helpers.RoundDecimalPlaces(loessDayWeightDelta[i], 2),
@@ -264,12 +267,17 @@ func calculateTDEE(avgDayCalories float64, avgDayWeightDiff float64) float64 {
 	return tdee
 }
 
-func loessSmoothTimeSeries(dates []time.Time, yPoints []float64, nearestNeighboursCount int) []regression.Coord {
+func loessSmoothTimeSeries(datesToEstimate []time.Time, dates []time.Time, yPoints []float64, bandwidth float64) []regression.Coord {
 	// Calculate smoothed line for weights.
-	var xPoints []float64
+	var xPointsToEstimate = make([]float64, 0, len(datesToEstimate))
+	for xPoint, _ := range dates {
+		xPointsToEstimate = append(xPointsToEstimate, float64(xPoint))
+	}
+	var xPoints = make([]float64, 0, len(datesToEstimate))
 	for xPoint, _ := range dates {
 		xPoints = append(xPoints, float64(xPoint))
 	}
+
 	var coordinates []regression.Coord
 	for i := 0; i < len(xPoints); i++ {
 		coordinates = append(coordinates, regression.Coord{
@@ -278,10 +286,9 @@ func loessSmoothTimeSeries(dates []time.Time, yPoints []float64, nearestNeighbou
 		})
 	}
 
-	loessCoords := regression.CalcLOESS(coordinates, nearestNeighboursCount)
-	var loessWeights []float64
-	for _, loessCoord := range loessCoords {
-		loessWeights = append(loessWeights, loessCoord.Y)
+	loessCoords, err := regression.CalcLOESS(xPointsToEstimate, coordinates, bandwidth)
+	if err != nil{
+		log.Fatal(err)
 	}
 
 	return loessCoords
