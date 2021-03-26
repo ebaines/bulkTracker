@@ -5,22 +5,56 @@ import (
 	"database/sql"
 	api "git.ebain.es/healthAndFitnessTracker/internal/api"
 	database "git.ebain.es/healthAndFitnessTracker/internal/database"
-	helpers "git.ebain.es/healthAndFitnessTracker/internal/helpers"
 	regression "git.ebain.es/healthAndFitnessTracker/internal/regression"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jedib0t/go-pretty/table"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/wcharczuk/go-chart"
 )
 
 const dateFormat = "02/01/2006"
 const sqliteConnString = "file:/home/ebaines/Downloads/fitness.db"
+
+type htmlTable struct {
+	header strings.Builder
+	rows   strings.Builder
+}
+
+func (t *htmlTable) setHeaders(headers []string) {
+	t.header.WriteString("<thead><tr>")
+	t.header.WriteString("<th>" + headers[0] + "</th>")
+
+	for _, title := range headers[1:] {
+		t.header.WriteString("<th align=\"right\">" + title + "</th>")
+	}
+	t.header.WriteString("</tr></thead>")
+}
+
+func (t *htmlTable) addRow(row []string) {
+	t.rows.WriteString("<tr>")
+	t.rows.WriteString("<td>" + row[0] + "</td>")
+
+	for _, cell := range row[1:] {
+		t.rows.WriteString("<td align=\"right\">" + cell + "</td>")
+	}
+	t.rows.WriteString("</tr>")
+}
+
+func (t *htmlTable) render() string {
+	var renderedTable strings.Builder
+	renderedTable.WriteString("<table>")
+	renderedTable.WriteString(t.header.String())
+	renderedTable.WriteString("<tbody>")
+	renderedTable.WriteString(t.rows.String())
+	renderedTable.WriteString("</tbody></table>")
+	return renderedTable.String()
+}
 
 func main() {
 	//go processDatabase()
@@ -34,7 +68,8 @@ func main() {
 
 func genTable(c *gin.Context) {
 	table := processDatabase()
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(table))
+	c.Data(http.StatusOK,
+		"text/html; charset=utf-8", []byte(table))
 }
 
 func processDatabase() string {
@@ -55,11 +90,11 @@ func processDatabase() string {
 	// Only plot the datapoint if the weight/calorie isn't NULL in the table.
 	for _, record := range records {
 		dates = append(dates, record.Time)
-		if record.Weight.Valid{
+		if record.Weight.Valid {
 			weightDates = append(weightDates, record.Time)
 			weights = append(weights, record.Weight.Float64)
 		}
-		if record.Calories.Valid{
+		if record.Calories.Valid {
 			calorieDates = append(calorieDates, record.Time)
 			calories = append(calories, record.Calories.Float64)
 		}
@@ -76,11 +111,11 @@ func processDatabase() string {
 	_, loessDayWeightDelta := regression.CoordsToArrays(loessSmoothTimeSeries(dates, weightDates, dayWeightDelta, 0.4))
 
 	//Calculate calories consumed per kg of bodyweight each day and smooth.
-	var caloriesPerKg []float64
-	for i, weight := range weights {
-		caloriesPerKg = append(caloriesPerKg, calories[i]/weight)
-	}
-	_, loessCaloriesPerKg := regression.CoordsToArrays(loessSmoothTimeSeries(dates, calorieDates, caloriesPerKg, 0.3))
+	//var caloriesPerKg []float64
+	//for i, weight := range weights {
+	//	caloriesPerKg = append(caloriesPerKg, calories[i]/weight)
+	//}
+	//_, loessCaloriesPerKg := regression.CoordsToArrays(loessSmoothTimeSeries(dates, calorieDates, caloriesPerKg, 0.3))
 
 	//Calculate current TDEE
 	calorieSlidingAverage := slidingAvgs(loessCalories, 14)
@@ -95,24 +130,24 @@ func processDatabase() string {
 	bigDifferences := calculateDayDifferences(loessWeights, 28)
 	differencesCals := calculateDayDifferences(loessCalories, 7)
 
-	t := table.NewWriter()
-	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"Date", "Calories", "Day's Weight", "Rolling Weight", "Rolling Smoothed Calories", "1 Day ΔM", "7 Day ΔM", "28 Day ΔM", "7 Day ΔKCal", "TDEE"})
+	var t htmlTable
+	//t.setHeaders([]string{"Date", "Calories", "Day's Weight", "Rolling Weight", "Rolling Smoothed Calories", "1 Day ΔM", "7 Day ΔM", "28 Day ΔM", "7 Day ΔKCal", "TDEE"})
+	t.setHeaders([]string{"Date", "Rolling Weight", "Rolling Smoothed Calories", "1 Day ΔM", "7 Day ΔM", "28 Day ΔM", "7 Day ΔKCal", "TDEE"})
 	for i := 0; i < len(differences); i++ {
-		t.AppendRows([]table.Row{{
-			dates[i].Format(dateFormat), calories[i], weights[i],
-			helpers.RoundDecimalPlaces(loessWeights[i], 2),
-			helpers.RoundDecimalPlaces(loessCalories[i], 2),
-			helpers.RoundDecimalPlaces(loessDayWeightDelta[i], 2),
-			helpers.RoundDecimalPlaces(differences[i], 2),
-			helpers.RoundDecimalPlaces(bigDifferences[i], 2),
-			helpers.RoundDecimalPlaces(differencesCals[i], 2),
-			helpers.RoundDecimalPlaces(bufferStart(tdee, 27, 0.0, i), 2),
-		}})
+		t.addRow([]string{
+			dates[i].Format(dateFormat),
+			//strconv.FormatFloat(calories[i], 'f', 2, 64),
+			//strconv.FormatFloat(weights[i], 'f', 2, 64),
+			strconv.FormatFloat(loessWeights[i], 'f', 2, 64),
+			strconv.FormatFloat(loessCalories[i], 'f', 2, 64),
+			strconv.FormatFloat(loessDayWeightDelta[i], 'f', 2, 64),
+			strconv.FormatFloat(differences[i], 'f', 2, 64),
+			strconv.FormatFloat(bigDifferences[i], 'f', 2, 64),
+			strconv.FormatFloat(differencesCals[i], 'f', 2, 64),
+			strconv.FormatFloat(bufferStart(tdee, 27, 0.0, i), 'f', 2, 64),
+		})
 	}
-
-	//t.Render()
-	renderedTable := t.RenderHTML()
+	renderedTable := t.render()
 
 	graph := chart.Chart{
 		XAxis: chart.XAxis{
@@ -142,34 +177,34 @@ func processDatabase() string {
 		chart.LegendThin(&graph),
 	}
 
-	graph2 := chart.Chart{
-		XAxis: chart.XAxis{
-			Name: "Date",
-		},
-		YAxis: chart.YAxis{
-			Name: "Weight Gain /kg/day",
-		},
-		YAxisSecondary: chart.YAxis{
-			Name: "Calories per Kg /kcal",
-		},
-		Series: []chart.Series{
-			chart.TimeSeries{
-				Name:    "Smoothed Weight Gain",
-				XValues: weightDates,
-				YValues: loessDayWeightDelta,
-			},
-			chart.TimeSeries{
-				Name:    "Smoothed Daily Calories",
-				YAxis:   chart.YAxisSecondary,
-				XValues: calorieDates,
-				YValues: loessCaloriesPerKg,
-			},
-		},
-	}
+	//graph2 := chart.Chart{
+	//	XAxis: chart.XAxis{
+	//		Name: "Date",
+	//	},
+	//	YAxis: chart.YAxis{
+	//		Name: "Weight Gain /kg/day",
+	//	},
+	//	YAxisSecondary: chart.YAxis{
+	//		Name: "Calories per Kg /kcal",
+	//	},
+	//	Series: []chart.Series{
+	//		chart.TimeSeries{
+	//			Name:    "Smoothed Weight Gain",
+	//			XValues: weightDates,
+	//			YValues: loessDayWeightDelta,
+	//		},
+	//		chart.TimeSeries{
+	//			Name:    "Smoothed Daily Calories",
+	//			YAxis:   chart.YAxisSecondary,
+	//			XValues: calorieDates,
+	//			YValues: loessCaloriesPerKg,
+	//		},
+	//	},
+	//}
 
-	graph2.Elements = []chart.Renderable{
-		chart.LegendThin(&graph2),
-	}
+	//graph2.Elements = []chart.Renderable{
+	//	chart.LegendThin(&graph2),
+	//}
 
 	graph3 := chart.Chart{
 		XAxis: chart.XAxis{
@@ -207,15 +242,15 @@ func processDatabase() string {
 
 	buffer := bytes.NewBuffer([]byte{})
 	err = graph.Render(chart.PNG, buffer)
-	buffer2 := bytes.NewBuffer([]byte{})
-	err = graph2.Render(chart.PNG, buffer2)
+	//buffer2 := bytes.NewBuffer([]byte{})
+	//err = graph2.Render(chart.PNG, buffer2)
 	buffer3 := bytes.NewBuffer([]byte{})
 	err = graph3.Render(chart.PNG, buffer3)
 
 	//f, err := os.Create("./output.png")
 	err = ioutil.WriteFile("output.png", buffer.Bytes(), 0644)
 	//f, err := os.Create("./output.png")
-	err = ioutil.WriteFile("output2.png", buffer2.Bytes(), 0644)
+	//err = ioutil.WriteFile("output2.png", buffer2.Bytes(), 0644)
 	err = ioutil.WriteFile("output3.png", buffer3.Bytes(), 0644)
 
 	return renderedTable
