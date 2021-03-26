@@ -270,10 +270,10 @@ func calculateTDEE(avgDayCalories float64, avgDayWeightDiff float64) float64 {
 func loessSmoothTimeSeries(datesToEstimate []time.Time, dates []time.Time, yPoints []float64, bandwidth float64) []regression.Coord {
 	// Calculate smoothed line for weights.
 	var xPointsToEstimate = make([]float64, 0, len(datesToEstimate))
-	for xPoint, _ := range dates {
+	for xPoint, _ := range datesToEstimate {
 		xPointsToEstimate = append(xPointsToEstimate, float64(xPoint))
 	}
-	var xPoints = make([]float64, 0, len(datesToEstimate))
+	var xPoints = make([]float64, 0, len(dates))
 	for xPoint, _ := range dates {
 		xPoints = append(xPoints, float64(xPoint))
 	}
@@ -287,7 +287,7 @@ func loessSmoothTimeSeries(datesToEstimate []time.Time, dates []time.Time, yPoin
 	}
 
 	loessCoords, err := regression.CalcLOESS(xPointsToEstimate, coordinates, bandwidth)
-	if err != nil{
+	if err != nil {
 		log.Fatal(err)
 	}
 
