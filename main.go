@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,49 +20,19 @@ import (
 const dateFormat = "02/01/2006"
 const sqliteConnString = "file:/home/ebaines/Downloads/fitness.db"
 
-type htmlTable struct {
-	header strings.Builder
-	rows   strings.Builder
-}
-
-func (t *htmlTable) setHeaders(headers []string) {
-	t.header.WriteString("<thead><tr>")
-	t.header.WriteString("<th>" + headers[0] + "</th>")
-
-	for _, title := range headers[1:] {
-		t.header.WriteString("<th align=\"right\">" + title + "</th>")
-	}
-	t.header.WriteString("</tr></thead>")
-}
-
-func (t *htmlTable) addRow(row []string) {
-	t.rows.WriteString("<tr>")
-	t.rows.WriteString("<td>" + row[0] + "</td>")
-
-	for _, cell := range row[1:] {
-		t.rows.WriteString("<td align=\"right\">" + cell + "</td>")
-	}
-	t.rows.WriteString("</tr>")
-}
-
-func (t *htmlTable) render() string {
-	var renderedTable strings.Builder
-	renderedTable.WriteString("<table>")
-	renderedTable.WriteString(t.header.String())
-	renderedTable.WriteString("<tbody>")
-	renderedTable.WriteString(t.rows.String())
-	renderedTable.WriteString("</tbody></table>")
-	return renderedTable.String()
-}
 
 func main() {
-	//go processDatabase()
-
 	r := gin.Default()
 
 	r.GET("/table", genTable)
-	r.POST("/api/weight", api.AddWeight)
-	r.Run()
+
+	apiRouter := r.Group("/api")
+	{
+		apiRouter.GET("/weight/:id", api.GetWeight)
+		apiRouter.POST("/weight", api.AddWeight)
+		apiRouter.DELETE("/weight/:id", api.DeleteWeight)
+	}
+	_ = r.Run()
 }
 
 func genTable(c *gin.Context) {
@@ -130,7 +99,7 @@ func processDatabase() string {
 	bigDifferences := calculateDayDifferences(loessWeights, 28)
 	differencesCals := calculateDayDifferences(loessCalories, 7)
 
-	var t htmlTable
+	var t HtmlTable
 	//t.setHeaders([]string{"Date", "Calories", "Day's Weight", "Rolling Weight", "Rolling Smoothed Calories", "1 Day ΔM", "7 Day ΔM", "28 Day ΔM", "7 Day ΔKCal", "TDEE"})
 	t.setHeaders([]string{"Date", "Rolling Weight", "Rolling Smoothed Calories", "1 Day ΔM", "7 Day ΔM", "28 Day ΔM", "7 Day ΔKCal", "TDEE"})
 	for i := 0; i < len(differences); i++ {
