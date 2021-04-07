@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"database/sql"
 	api "git.ebain.es/healthAndFitnessTracker/internal/api"
 	database "git.ebain.es/healthAndFitnessTracker/internal/database"
 	regression "git.ebain.es/healthAndFitnessTracker/internal/regression"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -30,6 +28,7 @@ func main() {
 	{
 		apiRouter.GET("/weight/:id", api.GetWeight)
 		apiRouter.POST("/weight", api.AddWeight)
+		apiRouter.PUT("/weight/:id", api.AddWeight)
 		apiRouter.DELETE("/weight/:id", api.DeleteWeight)
 	}
 	_ = r.Run()
@@ -209,18 +208,18 @@ func processDatabase() string {
 		chart.LegendThin(&graph3),
 	}
 
-	buffer := bytes.NewBuffer([]byte{})
-	err = graph.Render(chart.PNG, buffer)
+	//buffer := bytes.NewBuffer([]byte{})
+	//err = graph.Render(chart.PNG, buffer)
 	//buffer2 := bytes.NewBuffer([]byte{})
 	//err = graph2.Render(chart.PNG, buffer2)
-	buffer3 := bytes.NewBuffer([]byte{})
-	err = graph3.Render(chart.PNG, buffer3)
-
+	//buffer3 := bytes.NewBuffer([]byte{})
+	//err = graph3.Render(chart.PNG, buffer3)
+	//
 	//f, err := os.Create("./output.png")
-	err = ioutil.WriteFile("output.png", buffer.Bytes(), 0644)
+	//err = ioutil.WriteFile("output.png", buffer.Bytes(), 0644)
 	//f, err := os.Create("./output.png")
 	//err = ioutil.WriteFile("output2.png", buffer2.Bytes(), 0644)
-	err = ioutil.WriteFile("output3.png", buffer3.Bytes(), 0644)
+	//err = ioutil.WriteFile("output3.png", buffer3.Bytes(), 0644)
 
 	return renderedTable
 }
