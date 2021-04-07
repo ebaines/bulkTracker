@@ -49,10 +49,25 @@ func parseDayJSON(json interface{}) (dayRecord, error) {
 
 }
 
+func handleSQLExecErr(c *gin.Context, err error) {
+	log.Print(err)
+	if sqliteErr, ok := err.(sqlite3.Error); ok {
+		if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+			c.JSON(http.StatusBadRequest, gin.H{"status": "failure", "error": "Day already exists"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+		}
+	} else {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+	}
+}
+
 func AddWeight(c *gin.Context) {
 	db, err := sql.Open("sqlite3", sqliteConnString)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+		return
 	}
 	defer db.Close()
 
@@ -72,40 +87,28 @@ func AddWeight(c *gin.Context) {
 
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+		return
 	}
 
 	if c.Request.Method == "POST" {
 		stmt, err := tx.Prepare("INSERT INTO weight(date, weight_kg, calories_kcal) VALUES (?, ?, ?)")
 		if err != nil {
-			log.Fatal(err)
+			log.Print(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+			return
 		}
 		defer stmt.Close()
 
 		_, err = stmt.Exec(record.date, record.weight, record.calories)
 		if err != nil {
-			log.Print(err)
-			if sqliteErr, ok := err.(sqlite3.Error); ok {
-				if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
-					c.JSON(http.StatusBadRequest, gin.H{"status": "failure", "error": "Day already exists"})
-				} else {
-					c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-				}
-			} else {
-				c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-			}
-
+			handleSQLExecErr(c, err)
 			err = tx.Rollback()
 			if err != nil {
 				log.Print(err)
 			}
 			return
-
-		}
-
-		err = tx.Commit()
-		if err != nil {
-			log.Print(err)
 		}
 	} else if c.Request.Method == "PUT" {
 		id := c.Param("id")
@@ -118,28 +121,19 @@ func AddWeight(c *gin.Context) {
 
 		_, err = stmt.Exec(record.date, record.weight, record.calories, id)
 		if err != nil {
-			log.Print(err)
-			if sqliteErr, ok := err.(sqlite3.Error); ok {
-				if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
-					c.JSON(http.StatusBadRequest, gin.H{"status": "failure", "error": "Day already exists"})
-				} else {
-					c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-				}
-			} else {
-				c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-			}
-
+			handleSQLExecErr(c, err)
 			err = tx.Rollback()
 			if err != nil {
 				log.Print(err)
 			}
 			return
-
 		}
 
 		err = tx.Commit()
 		if err != nil {
 			log.Print(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+			return
 		}
 	}
 
@@ -149,7 +143,9 @@ func AddWeight(c *gin.Context) {
 func DeleteWeight(c *gin.Context) {
 	db, err := sql.Open("sqlite3", sqliteConnString)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+		return
 	}
 	defer db.Close()
 
@@ -157,21 +153,32 @@ func DeleteWeight(c *gin.Context) {
 
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+		return
 	}
 
 	stmt, err := tx.Prepare("DELETE FROM weight WHERE id=?")
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+		return
 	}
 	defer stmt.Close()
 
 	_, err = stmt.Exec(id)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+		return
 	}
 
-	tx.Commit()
+	err = tx.Commit()
+	if err != nil {
+		log.Print(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
 
@@ -180,7 +187,9 @@ func DeleteWeight(c *gin.Context) {
 func GetWeight(c *gin.Context) {
 	db, err := sql.Open("sqlite3", sqliteConnString)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+		return
 	}
 	defer db.Close()
 
@@ -188,31 +197,49 @@ func GetWeight(c *gin.Context) {
 
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+		return
 	}
 
-	stmt, err := tx.Prepare("SELECT weight_kg FROM weight WHERE id=?")
+	stmt, err := tx.Prepare("SELECT date, weight_kg, calories_kcal FROM weight WHERE id=?")
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+		return
 	}
 	defer stmt.Close()
 
 	rows, err := stmt.Query(id)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+		return
 	}
 	defer rows.Close()
 
+	var date string
 	var weight float64
+	var calories float64
+	var timestamp int64
 
 	for rows.Next() {
-		err = rows.Scan(&weight)
-
+		err = rows.Scan(&date, &weight, &calories)
 		if err != nil {
-			log.Fatal(err)
+			log.Print(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+			return
 		}
+
+		parsedTime, err := time.Parse(dateFormat, date)
+		if err != nil {
+			log.Print(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "Error parsing data from database."})
+			return
+		}
+		timestamp = parsedTime.Unix()
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "success", "weight": weight})
+	c.JSON(http.StatusOK, gin.H{"status": "success", "data": gin.H{"time": timestamp, "weight": weight, "calories": calories}})
 
 }
