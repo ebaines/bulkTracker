@@ -128,13 +128,13 @@ func AddWeight(c *gin.Context) {
 			}
 			return
 		}
+	}
 
-		err = tx.Commit()
-		if err != nil {
-			log.Print(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-			return
-		}
+	err = tx.Commit()
+	if err != nil {
+		log.Print(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"status": "success"})
