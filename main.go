@@ -2,15 +2,15 @@ package main
 
 import (
 	"database/sql"
-	api "git.ebain.es/healthAndFitnessTracker/internal/api"
+	"git.ebain.es/healthAndFitnessTracker/internal/api"
 	database "git.ebain.es/healthAndFitnessTracker/internal/database"
 	regression "git.ebain.es/healthAndFitnessTracker/internal/regression"
+	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/wcharczuk/go-chart"
 )
@@ -18,19 +18,24 @@ import (
 const dateFormat = "02/01/2006"
 const sqliteConnString = "file:/home/ebaines/Downloads/fitness.db"
 
+var DB *sql.DB
+
 
 func main() {
-	r := gin.Default()
+	db, err := sql.Open("sqlite3", sqliteConnString)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	DB = db
+	api.DB = db
+	api.DateFormat = dateFormat
+
+	r := api.ConfigureRouter()
 
 	r.GET("/table", genTable)
 
-	apiRouter := r.Group("/api")
-	{
-		apiRouter.GET("/weight/:id", api.GetWeight)
-		apiRouter.POST("/weight", api.AddWeight)
-		apiRouter.PUT("/weight/:id", api.AddWeight)
-		apiRouter.DELETE("/weight/:id", api.DeleteWeight)
-	}
 	_ = r.Run()
 }
 
@@ -41,14 +46,8 @@ func genTable(c *gin.Context) {
 }
 
 func processDatabase() string {
-	db, err := sql.Open("sqlite3", sqliteConnString)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
 	var dateRange = 1000
-	records := database.GetFinalRows(db, dateRange)
+	records := database.GetFinalRows(DB, dateRange)
 
 	var dates = make([]time.Time, 0, 1000)
 	var weightDates = make([]time.Time, 0, 1000)

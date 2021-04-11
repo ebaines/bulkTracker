@@ -1,6 +1,8 @@
 package main
 
-import "strings"
+import (
+	"strings"
+)
 
 type HtmlTable struct {
 	header strings.Builder
@@ -36,4 +38,3 @@ func (t *HtmlTable) render() string {
 	renderedTable.WriteString("</tbody></table>")
 	return renderedTable.String()
 }
-

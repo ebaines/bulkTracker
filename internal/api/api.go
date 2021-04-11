@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-const dateFormat = "02/01/2006"
-const sqliteConnString = "file:/home/ebaines/Downloads/fitness.db"
+var DB *sql.DB
+var DateFormat string
 
 type dayRecord struct {
 	date     string
@@ -25,13 +25,13 @@ func parseDayJSON(json interface{}) (dayRecord, error) {
 
 	m := json.(map[string]interface{})
 
-	record.date = time.Now().Format(dateFormat)
+	record.date = time.Now().Format(DateFormat)
 
 	for k, v := range m {
 		switch k {
 		case "time":
 			timestamp := v.(float64)
-			record.date = time.Unix(int64(timestamp), 0).Format(dateFormat)
+			record.date = time.Unix(int64(timestamp), 0).Format(DateFormat)
 		case "weight":
 			weight := v.(float64)
 			record.weight.Float64 = helpers.RoundDecimalPlaces(weight, 1)
@@ -41,7 +41,7 @@ func parseDayJSON(json interface{}) (dayRecord, error) {
 			record.calories.Int64 = int64(calories)
 			record.calories.Valid = true
 		default:
-			return record, errors.New("Invalid JSON - extra key")
+			return record, errors.New("invalid JSON - extra key")
 		}
 	}
 
@@ -62,15 +62,7 @@ func handleSQLExecErr(c *gin.Context, err error) {
 	}
 }
 
-func AddWeight(c *gin.Context) {
-	db, err := sql.Open("sqlite3", sqliteConnString)
-	if err != nil {
-		log.Print(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-		return
-	}
-	defer db.Close()
-
+func AddDay(c *gin.Context) {
 	var json interface{}
 
 	if err := c.ShouldBindJSON(&json); err != nil {
@@ -85,7 +77,7 @@ func AddWeight(c *gin.Context) {
 		return
 	}
 
-	tx, err := db.Begin()
+	tx, err := DB.Begin()
 	if err != nil {
 		log.Print(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
@@ -140,18 +132,10 @@ func AddWeight(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"status": "success"})
 }
 
-func DeleteWeight(c *gin.Context) {
-	db, err := sql.Open("sqlite3", sqliteConnString)
-	if err != nil {
-		log.Print(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-		return
-	}
-	defer db.Close()
-
+func DeleteDay(c *gin.Context) {
 	id := c.Param("id")
 
-	tx, err := db.Begin()
+	tx, err := DB.Begin()
 	if err != nil {
 		log.Print(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
@@ -184,18 +168,10 @@ func DeleteWeight(c *gin.Context) {
 
 }
 
-func GetWeight(c *gin.Context) {
-	db, err := sql.Open("sqlite3", sqliteConnString)
-	if err != nil {
-		log.Print(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-		return
-	}
-	defer db.Close()
-
+func GetDay(c *gin.Context) {
 	id := c.Param("id")
 
-	tx, err := db.Begin()
+	tx, err := DB.Begin()
 	if err != nil {
 		log.Print(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
@@ -231,7 +207,7 @@ func GetWeight(c *gin.Context) {
 			return
 		}
 
-		parsedTime, err := time.Parse(dateFormat, date)
+		parsedTime, err := time.Parse(DateFormat, date)
 		if err != nil {
 			log.Print(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "Error parsing data from database."})
