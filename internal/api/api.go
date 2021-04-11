@@ -216,6 +216,8 @@ func GetDay(c *gin.Context) {
 		timestamp = parsedTime.Unix()
 	}
 
+	tx.Commit()
+
 	c.JSON(http.StatusOK, gin.H{"status": "success", "data": gin.H{"time": timestamp, "weight": weight, "calories": calories}})
 
 }

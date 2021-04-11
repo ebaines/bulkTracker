@@ -13,7 +13,7 @@ type dayRecord struct {
 	Calories sql.NullFloat64
 }
 
-const dateFormat = "02/01/2006"
+const dateFormat = "2006-01-02"
 
 func GetFinalRows(dbConn *sql.DB, numRows int) []dayRecord {
 	sqlCntStmt :=

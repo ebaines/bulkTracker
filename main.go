@@ -15,7 +15,7 @@ import (
 	"github.com/wcharczuk/go-chart"
 )
 
-const dateFormat = "02/01/2006"
+const dateFormat = "2006-01-02"
 const sqliteConnString = "file:/home/ebaines/Downloads/fitness.db"
 
 var DB *sql.DB

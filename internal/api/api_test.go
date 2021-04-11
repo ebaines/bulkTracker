@@ -12,11 +12,12 @@ import (
 	"testing"
 )
 
-const testSqliteConnString = "file:test.db"
 const testSql = "test_db.sql"
 const testDb = "test.db"
+const testSqliteConnString = "file:" + testDb
 
 func populateDb() {
+
 	query, err := os.ReadFile(testSql)
 	if err != nil {
 		log.Fatal(err)
@@ -28,7 +29,7 @@ func populateDb() {
 	}
 }
 
-func dropDb(){
+func dropDb() {
 	// Truncate table
 	_, err := DB.Exec("DROP TABLE weight;")
 	if err != nil {
@@ -41,13 +42,34 @@ func resetDb() {
 	populateDb()
 }
 
-func deleteDbFile(){
+func deleteDbFile() {
 	err := os.Remove(testDb)
 	if err != nil {
-		if !errors.Is(err, os.ErrNotExist){
+		if !errors.Is(err, os.ErrNotExist) {
 			log.Fatal(err)
 		}
 	}
+}
+
+func dbRows() int {
+	sqlCntStmt :=
+		"SELECT COUNT(date) FROM weight ORDER BY id;"
+
+	rows, err := DB.Query(sqlCntStmt)
+	if err != nil {
+		log.Print("error in dbRows")
+		log.Fatal(err)
+	}
+
+	var count int
+
+	for rows.Next() {
+		rows.Scan(&count)
+	}
+
+	defer rows.Close()
+
+	return count
 }
 
 func TestMain(m *testing.M) {
@@ -60,14 +82,13 @@ func TestMain(m *testing.M) {
 	defer db.Close()
 
 	DB = db
-	DateFormat = "02/01/2006"
-
+	DateFormat = "2006-01-02"
 	populateDb()
 	m.Run()
 	deleteDbFile()
 }
 
-func TestAddDay(t *testing.T) {
+func TestGetDay(t *testing.T) {
 	router := ConfigureRouter()
 
 	w := httptest.NewRecorder()
@@ -76,4 +97,7 @@ func TestAddDay(t *testing.T) {
 
 	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "{\"data\":{\"calories\":2900,\"time\":1579910400,\"weight\":82},\"status\":\"success\"}", w.Body.String())
+	assert.Equal(t, 439, dbRows())
+
+	resetDb()
 }
