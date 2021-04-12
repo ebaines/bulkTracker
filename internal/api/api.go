@@ -49,6 +49,29 @@ func parseDayJSON(json interface{}) (dayRecord, error) {
 
 }
 
+func genDayJSON(record dayRecord) (map[string]interface{}, error) {
+	ginJSON := make(map[string]interface{})
+
+	parsedTime, err := time.Parse(DateFormat, record.date)
+	if err != nil {
+		return nil, err
+	}
+	timestamp := parsedTime.Unix()
+
+	ginJSON["date"] = timestamp
+
+	if record.weight.Valid{
+		ginJSON["weight"] = record.weight.Float64
+	}
+
+	if record.calories.Valid{
+		ginJSON["calories"] = record.calories.Int64
+	}
+
+	return ginJSON, nil
+
+}
+
 func handleSQLExecErr(c *gin.Context, err error) {
 	log.Print(err)
 	if sqliteErr, ok := err.(sqlite3.Error); ok {
@@ -77,87 +100,29 @@ func AddDay(c *gin.Context) {
 		return
 	}
 
-	tx, err := DB.Begin()
-	if err != nil {
-		log.Print(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-		return
-	}
-
 	if c.Request.Method == "POST" {
-		stmt, err := tx.Prepare("INSERT INTO weight(date, weight_kg, calories_kcal) VALUES (?, ?, ?)")
-		if err != nil {
-			log.Print(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-			return
-		}
-		defer stmt.Close()
-
-		_, err = stmt.Exec(record.date, record.weight, record.calories)
+		_, err := DB.Exec("INSERT INTO weight(date, weight_kg, calories_kcal) VALUES (?, ?, ?)", record.date, record.weight, record.calories)
 		if err != nil {
 			handleSQLExecErr(c, err)
-			err = tx.Rollback()
-			if err != nil {
-				log.Print(err)
-			}
 			return
 		}
+		c.JSON(http.StatusCreated, gin.H{"status": "success"})
 	} else if c.Request.Method == "PUT" {
 		id := c.Param("id")
 
-		stmt, err := tx.Prepare("UPDATE weight SET date=?, weight_kg=?, calories_kcal=? WHERE id = ?")
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer stmt.Close()
-
-		_, err = stmt.Exec(record.date, record.weight, record.calories, id)
+		_, err := DB.Exec("UPDATE weight SET date=?, weight_kg=?, calories_kcal=? WHERE id = ?", record.date, record.weight, record.calories, id)
 		if err != nil {
 			handleSQLExecErr(c, err)
-			err = tx.Rollback()
-			if err != nil {
-				log.Print(err)
-			}
 			return
 		}
+		c.JSON(http.StatusOK, gin.H{"status": "success"})
 	}
-
-	err = tx.Commit()
-	if err != nil {
-		log.Print(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{"status": "success"})
 }
 
 func DeleteDay(c *gin.Context) {
 	id := c.Param("id")
 
-	tx, err := DB.Begin()
-	if err != nil {
-		log.Print(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-		return
-	}
-
-	stmt, err := tx.Prepare("DELETE FROM weight WHERE id=?")
-	if err != nil {
-		log.Print(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-		return
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec(id)
-	if err != nil {
-		log.Print(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-		return
-	}
-
-	err = tx.Commit()
+	_, err := DB.Exec("DELETE FROM weight WHERE id=?", id)
 	if err != nil {
 		log.Print(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
@@ -168,56 +133,42 @@ func DeleteDay(c *gin.Context) {
 
 }
 
-func GetDay(c *gin.Context) {
-	id := c.Param("id")
-
-	tx, err := DB.Begin()
+func dbGetDay(id string)(dayRecord, error){
+	rows, err := DB.Query("SELECT date, weight_kg, calories_kcal FROM weight WHERE id=?", id)
 	if err != nil {
-		log.Print(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-		return
-	}
-
-	stmt, err := tx.Prepare("SELECT date, weight_kg, calories_kcal FROM weight WHERE id=?")
-	if err != nil {
-		log.Print(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-		return
-	}
-	defer stmt.Close()
-
-	rows, err := stmt.Query(id)
-	if err != nil {
-		log.Print(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-		return
+		return dayRecord{}, err
 	}
 	defer rows.Close()
 
-	var date string
-	var weight float64
-	var calories float64
-	var timestamp int64
+	var record dayRecord
 
 	for rows.Next() {
-		err = rows.Scan(&date, &weight, &calories)
+		err = rows.Scan(&record.date, &record.weight, &record.calories)
 		if err != nil {
-			log.Print(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
-			return
+			return dayRecord{}, err
 		}
-
-		parsedTime, err := time.Parse(DateFormat, date)
-		if err != nil {
-			log.Print(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "Error parsing data from database."})
-			return
-		}
-		timestamp = parsedTime.Unix()
 	}
 
-	tx.Commit()
+	return record, nil
+}
 
-	c.JSON(http.StatusOK, gin.H{"status": "success", "data": gin.H{"time": timestamp, "weight": weight, "calories": calories}})
+func GetDay(c *gin.Context) {
+	id := c.Param("id")
+
+	record, err := dbGetDay(id)
+	if err != nil {
+		log.Print(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+		return
+	}
+
+	responseJSON, err := genDayJSON(record)
+	if err != nil{
+		log.Print(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "Error generating JSON"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "success", "data": responseJSON})
 
 }
