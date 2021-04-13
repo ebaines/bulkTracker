@@ -20,7 +20,6 @@ const sqliteConnString = "file:/home/ebaines/Downloads/fitness.db"
 
 var DB *sql.DB
 
-
 func main() {
 	db, err := sql.Open("sqlite3", sqliteConnString)
 	if err != nil {

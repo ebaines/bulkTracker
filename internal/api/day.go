@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"git.ebain.es/healthAndFitnessTracker/internal/helpers"
 	"github.com/gin-gonic/gin"
@@ -18,6 +19,33 @@ type dayRecord struct {
 	date     string
 	weight   sql.NullFloat64
 	calories sql.NullInt64
+}
+
+func (record dayRecord) MarshalJSON() ([]byte, error) {
+	ginJSON := make(map[string]interface{})
+
+	parsedTime, err := time.Parse(DateFormat, record.date)
+	if err != nil {
+		return []byte("{}"), nil
+	}
+	timestamp := parsedTime.Unix()
+
+	ginJSON["date"] = timestamp
+
+	if record.weight.Valid {
+		ginJSON["weight"] = record.weight.Float64
+	}
+
+	if record.calories.Valid {
+		ginJSON["calories"] = record.calories.Int64
+	}
+
+	marshalledJson, err := json.Marshal(ginJSON)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return marshalledJson, nil
 }
 
 func parseDayJSON(json interface{}) (dayRecord, error) {
@@ -60,11 +88,11 @@ func genDayJSON(record dayRecord) (map[string]interface{}, error) {
 
 	ginJSON["date"] = timestamp
 
-	if record.weight.Valid{
+	if record.weight.Valid {
 		ginJSON["weight"] = record.weight.Float64
 	}
 
-	if record.calories.Valid{
+	if record.calories.Valid {
 		ginJSON["calories"] = record.calories.Int64
 	}
 
@@ -72,6 +100,9 @@ func genDayJSON(record dayRecord) (map[string]interface{}, error) {
 
 }
 
+//-------------
+//POST
+//-------------
 func handleSQLExecErr(c *gin.Context, err error) {
 	log.Print(err)
 	if sqliteErr, ok := err.(sqlite3.Error); ok {
@@ -132,8 +163,10 @@ func DeleteDay(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
 
 }
-
-func dbGetDay(id string)(dayRecord, error){
+//-------------
+//GET
+//-------------
+func dbGetDay(id string) (dayRecord, error) {
 	rows, err := DB.Query("SELECT date, weight_kg, calories_kcal FROM weight WHERE id=?", id)
 	if err != nil {
 		return dayRecord{}, err
@@ -142,11 +175,13 @@ func dbGetDay(id string)(dayRecord, error){
 
 	var record dayRecord
 
-	for rows.Next() {
+	if rows.Next() {
 		err = rows.Scan(&record.date, &record.weight, &record.calories)
 		if err != nil {
 			return dayRecord{}, err
 		}
+	} else {
+		return dayRecord{}, errors.New("day does not exist")
 	}
 
 	return record, nil
@@ -158,17 +193,12 @@ func GetDay(c *gin.Context) {
 	record, err := dbGetDay(id)
 	if err != nil {
 		log.Print(err)
+		if err.Error() == "day does not exist" {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": err.Error()})
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
 		return
 	}
 
-	responseJSON, err := genDayJSON(record)
-	if err != nil{
-		log.Print(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "Error generating JSON"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"status": "success", "data": responseJSON})
-
+	c.JSON(http.StatusOK, gin.H{"status": "success", "data": record})
 }

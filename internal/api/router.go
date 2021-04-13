@@ -4,16 +4,25 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func ConfigureRouter() *gin.Engine{
+func ConfigureRouter() *gin.Engine {
 	r := gin.Default()
 
 	apiRouter := r.Group("/api")
 	{
-		apiRouter.GET("/day/:id", GetDay)
-		apiRouter.POST("/day", AddDay)
-		apiRouter.PUT("/day/:id", AddDay)
-		apiRouter.DELETE("/day/:id", DeleteDay)
+		dayApiRouter := apiRouter.Group("/day")
+		{
+			dayApiRouter.GET("/:id", GetDay)
+			dayApiRouter.POST("", AddDay)
+			dayApiRouter.PUT("/:id", AddDay)
+			dayApiRouter.DELETE("/:id", DeleteDay)
+		}
+		daysApiRouter := apiRouter.Group("/days")
+		{
+			daysApiRouter.GET("", GetDays)
+		}
 	}
+
+
 
 	return r
 }

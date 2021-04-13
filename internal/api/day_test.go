@@ -127,18 +127,6 @@ func TestGetNonExistentDay(t *testing.T) {
 	resetDb()
 }
 
-func TestGetMalformedDay(t *testing.T) {
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/day/2", nil)
-	ROUTER.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
-	//assert.Equal(t, "{\"data\":{\"calories\":2900,\"date\":1579910400,\"weight\":82},\"status\":\"success\"}", w.Body.String())
-	//assert.Equal(t, 428, dbRows())
-
-	resetDb()
-}
-
 func TestAddDay(t *testing.T) {
 	testData := []postRequestData{
 		{
