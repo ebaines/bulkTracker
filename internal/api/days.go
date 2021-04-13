@@ -42,13 +42,30 @@ func dbGetDays(count string) ([]dayRecord, error) {
 func GetDays(c *gin.Context) {
 	count := c.Query("count")
 	sorting := c.Query("sort")
+
+	// Set defaults
+	if count == "" {
+		count = "100"
+	}
+	
+	if sorting == ""{
+		sorting = "recent"
+	}
+
 	var records []dayRecord
 
 	switch sorting {
 	case "recent":
 		var err error
 		records, err = dbGetDays(count)
-		log.Print(records)
+		if err != nil {
+			log.Print(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
+			return
+		}
+	case "":
+		var err error
+		records, err = dbGetDays(count)
 		if err != nil {
 			log.Print(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"status": "failure", "error": "SQL error"})
@@ -59,5 +76,5 @@ func GetDays(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{ "status": "success", "data": records})
+	c.JSON(http.StatusOK, gin.H{"status": "success", "data": records})
 }
