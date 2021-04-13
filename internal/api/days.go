@@ -45,7 +45,7 @@ func GetDays(c *gin.Context) {
 
 	// Set defaults
 	if count == "" {
-		count = "100"
+		count = "10"
 	}
 	
 	if sorting == ""{
