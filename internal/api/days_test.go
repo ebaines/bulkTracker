@@ -2,7 +2,6 @@ package api
 
 import (
 	"github.com/stretchr/testify/assert"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -118,8 +117,6 @@ func TestGetDaysDateRange(t *testing.T) {
 	req, _ := http.NewRequest("GET", "/api/days?filterType=dateRange&startDate=2020-02-11&endDate=2020-02-13", nil)
 	ROUTER.ServeHTTP(w, req)
 	
-	log.Print(w.Body.String())
-
 	parsedJson, err := parseTestJSON(w.Body.String())
 	if err != nil {
 		t.Error(err)
@@ -127,6 +124,25 @@ func TestGetDaysDateRange(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, correctResponseData, parsedJson)
+
+	resetDb()
+}
+
+func TestGetDaysSmoothedDateRange(t *testing.T) {
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/days?filterType=dateRange&dataType=smooth&startDate=2020-01-25&endDate=2020-02-13", nil)
+	ROUTER.ServeHTTP(w, req)
+
+	parsedJson, err := parseTestJSON(w.Body.String())
+	if err != nil {
+		t.Error(err)
+	}
+	
+	assertedJson := parsedJson.(map[string]interface{})
+	data := assertedJson["data"].([]interface{})
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, len(data), 20)
 
 	resetDb()
 }
