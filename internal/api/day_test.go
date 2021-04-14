@@ -30,6 +30,18 @@ type postRequestData struct {
 
 var ROUTER *gin.Engine
 
+func parseTestJSON(jsonString string) (interface{}, error) {
+	var f interface{}
+	err := json.Unmarshal([]byte(jsonString), &f)
+	if err != nil {
+		return f, err
+	}
+
+	m := f.(map[string]interface{})
+
+	return m, nil
+}
+
 func populateDb() {
 
 	query, err := os.ReadFile(testSql)
@@ -230,7 +242,7 @@ func TestAddExistingDay(t *testing.T) {
 	resetDb()
 }
 
-func TestAddMalformedBody(t *testing.T){
+func TestAddMalformedBody(t *testing.T) {
 	requestJson := "asodhflksahf"
 
 	w := httptest.NewRecorder()
