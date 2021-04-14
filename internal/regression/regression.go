@@ -2,7 +2,6 @@ package regression
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"sort"
 )
@@ -142,10 +141,12 @@ func wLSRegression(coordinates coordDistSlice, weights []float64) (float64, floa
 	}
 
 	weightedMeanX, err := weightedMean(xCoords, weights)
-	weightedMeanY, err := weightedMean(yCoords, weights)
-
 	if err != nil {
-		fmt.Println(err)
+		return 0, 0, err
+	}
+	weightedMeanY, err := weightedMean(yCoords, weights)
+	if err != nil {
+		return 0, 0, err
 	}
 
 	var sumNumerator float64
@@ -155,7 +156,13 @@ func wLSRegression(coordinates coordDistSlice, weights []float64) (float64, floa
 		sumDenominator = sumDenominator + weights[i]*math.Pow(xCoords[i]-weightedMeanX, 2)
 	}
 
-	var slope = sumNumerator / sumDenominator
+	// This deals with flat lines caused by identical Y values or insufficiently wide bandwidth.
+	var slope float64
+	if sumDenominator == 0{
+		slope = 0.0
+	}else{
+		slope = sumNumerator / sumDenominator
+	}
 	var intercept = weightedMeanY - slope*weightedMeanX
 
 	return slope, intercept, nil
@@ -174,11 +181,15 @@ func CalcLOESS(estimationPoints []float64, coordinates []Coord, bandwidth float6
 
 		// Capture coordinates within the width
 		widthCoords, err := findNearest(coordinates, estimationPoints[i], bandwidth)
+		if err != nil {
+			return []Coord{}, err
+		}
+
 
 		weights := tricubeWeightFunction(widthCoords)
 		slope, intercept, err := wLSRegression(widthCoords, weights)
 		if err != nil {
-			fmt.Println(err)
+			return []Coord{}, err
 		}
 
 		//fmt.Println("Weights:", weights)
