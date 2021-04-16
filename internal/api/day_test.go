@@ -118,13 +118,26 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetDay(t *testing.T) {
+	correctResponseData := map[string]interface{}{
+		"status": "success",
+		"data": map[string]interface{}{
+			"date":     "2020-01-25",
+			"calories": 2900.0,
+			"weight":   82.0,
+		},
+	}
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/day/1", nil)
 	ROUTER.ServeHTTP(w, req)
 
+	parsedJson, err := parseTestJSON(w.Body.String())
+	if err != nil {
+		t.Error(err)
+	}
+
 	assert.Equal(t, 200, w.Code)
-	assert.Equal(t, "{\"data\":{\"calories\":2900,\"date\":1579910400,\"weight\":82},\"status\":\"success\"}", w.Body.String())
+	assert.Equal(t, correctResponseData, parsedJson)
 	assert.Equal(t, 20, dbRows())
 
 	resetDb()

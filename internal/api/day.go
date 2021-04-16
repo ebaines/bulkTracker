@@ -24,13 +24,7 @@ type dayRecord struct {
 func (record dayRecord) MarshalJSON() ([]byte, error) {
 	ginJSON := make(map[string]interface{})
 
-	parsedTime, err := time.Parse(DateFormat, record.date)
-	if err != nil {
-		return []byte("{}"), nil
-	}
-	timestamp := parsedTime.Unix()
-
-	ginJSON["date"] = timestamp
+	ginJSON["date"] = record.date
 
 	if record.weight.Valid {
 		ginJSON["weight"] = record.weight.Float64

@@ -22,13 +22,7 @@ type smoothedDayRecord struct {
 func (record smoothedDayRecord) MarshalJSON() ([]byte, error) {
 	ginJSON := make(map[string]interface{})
 
-	parsedTime, err := time.Parse(DateFormat, record.date)
-	if err != nil {
-		return []byte("{}"), nil
-	}
-	timestamp := parsedTime.Unix()
-
-	ginJSON["date"] = timestamp
+	ginJSON["date"] = record.date
 	ginJSON["smoothedWeight"] = record.smoothedWeight
 	ginJSON["smoothedCalories"] = record.smoothedCalories
 
@@ -188,7 +182,8 @@ func GetDays(c *gin.Context) {
 	var returnData []smoothedDayRecord
 
 	// If requested, smooth the data.
-	if dataType == "smooth" {
+	if dataType == "smoothed" {
+		log.Print("smoothing")
 		recordLength := len(records)
 
 		datesToEstimate := make([]time.Time, 0, recordLength)
@@ -242,7 +237,7 @@ func GetDays(c *gin.Context) {
 		}
 	}
 
-	if dataType == "smooth" {
+	if dataType == "smoothed" {
 		c.JSON(http.StatusOK, gin.H{"status": "success", "data": returnData})
 	} else {
 		c.JSON(http.StatusOK, gin.H{"status": "success", "data": records})

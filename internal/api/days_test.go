@@ -13,27 +13,27 @@ func TestGetDays(t *testing.T) {
 		"status": "success",
 		"data": []interface{}{
 			map[string]interface{}{
-				"date":     1581206400.0,
+				"date":     "2020-02-09",
 				"calories": 3100.0,
 				"weight":   83.3,
 			},
 			map[string]interface{}{
-				"date":     1581292800.0,
+				"date":     "2020-02-10",
 				"calories": 3000.0,
 				"weight":   83.3,
 			},
 			map[string]interface{}{
-				"date":     1581379200.0,
+				"date":     "2020-02-11",
 				"calories": 3000.0,
 				"weight":   83.8,
 			},
 			map[string]interface{}{
-				"date":     1581465600.0,
+				"date":     "2020-02-12",
 				"calories": 3000.0,
 				"weight":   83.9,
 			},
 			map[string]interface{}{
-				"date":     1581552000.0,
+				"date":     "2020-02-13",
 				"calories": 3000.0,
 				"weight":   84.0,
 			},
@@ -60,17 +60,17 @@ func TestGetDaysDefaults(t *testing.T) {
 		"status": "success",
 		"data": []interface{}{
 			map[string]interface{}{
-				"date":     1581379200.0,
+				"date":     "2020-02-11",
 				"calories": 3000.0,
 				"weight":   83.8,
 			},
 			map[string]interface{}{
-				"date":     1581465600.0,
+				"date":     "2020-02-12",
 				"calories": 3000.0,
 				"weight":   83.9,
 			},
 			map[string]interface{}{
-				"date":     1581552000.0,
+				"date":     "2020-02-13",
 				"calories": 3000.0,
 				"weight":   84.0,
 			},
@@ -96,17 +96,17 @@ func TestGetDaysDateRange(t *testing.T) {
 		"status": "success",
 		"data": []interface{}{
 			map[string]interface{}{
-				"date":     1581379200.0,
+				"date":     "2020-02-11",
 				"calories": 3000.0,
 				"weight":   83.8,
 			},
 			map[string]interface{}{
-				"date":     1581465600.0,
+				"date":     "2020-02-12",
 				"calories": 3000.0,
 				"weight":   83.9,
 			},
 			map[string]interface{}{
-				"date":     1581552000.0,
+				"date":     "2020-02-13",
 				"calories": 3000.0,
 				"weight":   84.0,
 			},
